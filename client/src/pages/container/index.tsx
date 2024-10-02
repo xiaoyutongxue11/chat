@@ -11,6 +11,7 @@ import AddressBook from '../address-book';
 import Chat from '../chat';
 import ImageLoad from '@/components/ImageLoad';
 import ChangePwdModal from '@/components/ChangePwdModal';
+import ChangePerInfoModal from '@/components/ChangePerInfoModal';
 const Container = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -68,8 +69,12 @@ const Container = () => {
           </div>
         </div>
         <div className={styles.btnContainer}>
-          <Button size="small">修改密码</Button>
-          <Button size="small">修改信息</Button>
+          <Button size="small" onClick={() => handleForgetModal(true)}>
+            修改密码
+          </Button>
+          <Button size="small" onClick={() => handleInfoModal(true)}>
+            修改信息
+          </Button>
         </div>
       </div>
     );
@@ -133,9 +138,8 @@ const Container = () => {
           ) : null}
         </div>
       </div>
-      {forgetModal && (
-        <ChangePwdModal openmodal={forgetModal} handleModal={() => handleForgetModal} />
-      )}
+      {forgetModal && <ChangePwdModal openmodal={forgetModal} handleModal={handleForgetModal} />}
+      {infoModal && <ChangePerInfoModal openmodal={infoModal} handleModal={handleInfoModal} />}
     </div>
   );
 };
