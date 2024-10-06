@@ -33,9 +33,9 @@ export interface ICallReceiverInfo {
 
 // 音视频通话状态
 export enum CallStatus {
-  INITIATE = 'initiate',
-  RECEIVE = 'receive',
-  CALLING = 'calling'
+  INITIATE = 'initiate', // 发起通话
+  RECEIVE = 'receive', // 接受通话
+  CALLING = 'calling' // 通话中
 }
 
 export type callStatusType = 'initiate' | 'receive' | 'calling';

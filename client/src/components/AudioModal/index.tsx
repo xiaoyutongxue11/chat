@@ -9,17 +9,19 @@ import {
 } from './type';
 import { getRoomMembers } from './api';
 import { HttpStatus } from '@/utils/constant';
-import { Modal } from 'antd';
+import { Drawer, Empty, Modal } from 'antd';
 import useShowMessage from '@/hooks/useShowMessage';
 import styles from './index.module.less';
 import ImageLoad from '../ImageLoad';
 import { CallIcons } from '@/assets/images';
 import { wsBaseURL } from '@/config';
 import { userStorage } from '@/utils/storage';
+import { formatCallTime } from '@/utils/time';
 
 const AudioModal = (props: ICallModalProps) => {
   const showMessage = useShowMessage();
   const user = JSON.parse(userStorage.getItem());
+  const [duration, setDuration] = useState<number>(0);
   const { openmodal, handleModal, status, type, callInfo } = props;
   // 当前房间正在通话的所有人
   const [roomMembers, setRoomMembers] = useState<IRoomMembersItem[]>([]);
@@ -33,6 +35,8 @@ const AudioModal = (props: ICallModalProps) => {
   const localStream = useRef<MediaStream | null>(null);
   // 主要负责存储通话对象信息，每个通话对象都有一个 RTCPeerConnection 实例，该实例是真正负责音视频通信的角色
   const callListRef = useRef<ICallList>({});
+  // 与callListRef作用类似，不过可以负责相关DOM的渲染
+  const [callList, setCallList] = useState<ICallList>({});
   // 初始化本人音视频流
   const initStream = async () => {
     try {
@@ -227,7 +231,46 @@ const AudioModal = (props: ICallModalProps) => {
     };
   };
   // 拒绝/挂断通话
-  const handleRejectCall = async () => {};
+  const handleRejectCall = async () => {
+    if (!socket.current) return;
+    socket.current.send(JSON.stringify({ name: 'reject' }));
+    socket.current.close();
+    socket.current = null;
+    setTimeout(() => {
+      handleModal(false);
+      if (localStream.current) {
+        localStream.current.getAudioTracks()[0].stop();
+      }
+    }, 1500);
+  };
+  // 接收通话（被邀请人）
+  const handleAcceptCall = async () => {
+    setCallStatus(CallStatus.CALLING);
+    try {
+      // 1、初始化自己的音视频流
+      await initStream();
+      // 2、发送new_peer指令告诉房间内其他人自己要进入房间
+      socket.current?.send(
+        JSON.stringify({
+          name: 'new_peer'
+        })
+      );
+      if (type !== 'private') {
+        await getRoomMembersData();
+      }
+    } catch {
+      showMessage('error', '获取音频流失败，请检查设备是否正常或权限是否开启');
+      socket.current?.send(JSON.stringify({ name: 'reject' }));
+      socket.current?.close();
+      socket.current = null;
+      if (localStream.current) {
+        localStream.current.getAudioTracks()[0].stop();
+      }
+      setTimeout(() => {
+        handleModal(false);
+      }, 1500);
+    }
+  };
   //  获取当前房间内正在通话的所有人
   const getRoomMembersData = async () => {
     try {
@@ -245,6 +288,18 @@ const AudioModal = (props: ICallModalProps) => {
       showMessage('error', '获取房间成员失败');
     }
   };
+  // 静音/解除静音
+  const handleMute = (item: IRoomMembersItem) => {
+    const audio = document.querySelector(`.audio_${item.username}`) as HTMLVideoElement;
+    if (audio) audio.muted = !audio.muted;
+    const newRoomMembers = roomMembers.map(member => {
+      if (member.username === item.username) {
+        member.muted = !member.muted;
+      }
+      return member;
+    });
+    setRoomMembers(newRoomMembers);
+  };
 
   // 打开组件时初始化websocket连接和pc通道
   useEffect(() => {
@@ -259,6 +314,21 @@ const AudioModal = (props: ICallModalProps) => {
       initPC(item.username);
     });
   }, []);
+  // callList初始化，用于渲染video标签
+  useEffect(() => {
+    setCallList(callListRef.current);
+  }, [callListRef.current]);
+  // 当有人和自己通话时，监听通话房间
+  useEffect(() => {
+    if (callStatus === CallStatus.CALLING) {
+      const timer = setInterval(() => {
+        setDuration(duration => duration + 1);
+      }, 1000);
+      return () => {
+        clearInterval(timer);
+      };
+    }
+  }, [callStatus]);
   return (
     <Modal
       open={openmodal}
@@ -289,9 +359,68 @@ const AudioModal = (props: ICallModalProps) => {
                   : '发起群语音通话'}
               </span>
               <div className={styles.callIcons}>
-                <img src={CallIcons.REJECT} alt="" draggable="false" />
+                <img src={CallIcons.REJECT} alt="" draggable="false" onClick={handleRejectCall} />
               </div>
             </>
+          )}
+          {callStatus === CallStatus.RECEIVE && (
+            <>
+              <span className={styles.callWords}>
+                {type === 'private'
+                  ? `${callInfo.callReceiverList[0].alias} 发起语音通话`
+                  : '有人邀请您加入语音通话'}
+              </span>
+              <div className={styles.callIcons}>
+                <img src={CallIcons.ACCEPT} alt="" draggable="false" onClick={handleAcceptCall} />
+                <img src={CallIcons.REJECT} alt="" draggable="false" onClick={handleRejectCall} />
+              </div>
+            </>
+          )}
+          {callStatus === CallStatus.CALLING && (
+            <>
+              {callList &&
+                Object.keys(callList).map(username => {
+                  if (username === user.username) return null;
+                  return (
+                    <video key={username} src="" className={`audio_${username}`} autoPlay></video>
+                  );
+                })}
+              <span className={styles.callWords}>{formatCallTime(duration)}</span>
+              <div className={styles.callIcons}>
+                <img src={CallIcons.REJECT} alt="" draggable="false" onClick={handleRejectCall} />
+              </div>
+            </>
+          )}
+          {type !== 'private' && (
+            <Drawer
+              title="当前正在通话的群成员"
+              placement="right"
+              closable={false}
+              getContainer={false}
+              width="50%"
+              forceRender={true}
+              className="memberDrawer"
+              open={isShowRoomMembersDrawer}
+              onClose={() => {
+                setIsRoomMembersDrawer(false);
+              }}
+            >
+              {roomMembers.length ? (
+                roomMembers.map(item => {
+                  return (
+                    <li key={item.username}>
+                      <span>{item.username}</span>
+                      <span
+                        className={`iconfont ${item.muted ? 'icon-jingyin' : 'icon-yuyintonghua'}`}
+                        onClick={() => handleMute(item)}
+                      ></span>
+                    </li>
+                  );
+                })
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无群友加入通话" />
+              )}
+            </Drawer>
           )}
         </div>
       </div>
