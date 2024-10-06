@@ -1,0 +1,89 @@
+@import '@/assets/styles/variables.less';
+
+.chatList {
+  display: flex;
+  .leftContainer {
+    flex: 5;
+    display: flex;
+    flex-direction: column;
+    height: 6rem;
+    .search {
+      height: 0.6rem;
+    }
+    .list {
+      height: 5.4rem;
+      overflow: auto;
+      overflow-y: scroll;
+      overflow: overlay;
+      .chat_none {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 0.2rem;
+        color: @font-color-lightest;
+      }
+      .chat_item {
+        height: 0.7rem;
+        display: flex;
+        border-bottom: 0.005rem solid @item-border-color;
+        cursor: pointer;
+        padding: 0.05rem;
+        gap: 0.05rem;
+        .chat_avatar {
+          flex: 1;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          img {
+            width: 0.5rem;
+            height: 0.5rem;
+          }
+        }
+        .chat_info {
+          flex: 2;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-around;
+          .chat_name {
+            font-size: 0.15rem;
+          }
+          .chat_message {
+            font-size: 0.12rem;
+            width: 1rem;
+            color: @font-color-lightest;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+        }
+        .chat_info_time {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-around;
+          align-items: flex-end;
+
+          .chat_time {
+            font-size: 0.1rem;
+            color: @font-color-lightest;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .chat_unread {
+            font-size: 0.12rem;
+            color: @font-color-lightest;
+          }
+        }
+      }
+      .chat_item:hover {
+        background-color: @item-hover-bg-color;
+      }
+    }
+  }
+  .rightContainer {
+    flex: 12;
+  }
+}
