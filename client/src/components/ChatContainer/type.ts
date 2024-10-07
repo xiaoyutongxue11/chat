@@ -5,6 +5,6 @@ import { IMessageItem } from '@/components/MessageShow/type';
  */
 // 给聊天框组件传递的参数类型
 export interface IChatContainerProps {
-	historyMsg: IMessageItem[];
-	newMsg: IMessageItem[];
+  historyMsg: IMessageItem[];
+  newMsg: IMessageItem[];
 }
