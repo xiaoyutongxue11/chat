@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import styles from './index.module.less';
 import { MenuIconList } from '@/assets/icons';
 import { Button, Popover, Tooltip } from 'antd';
@@ -12,6 +12,11 @@ import Chat from '../chat';
 import ImageLoad from '@/components/ImageLoad';
 import ChangePwdModal from '@/components/ChangePwdModal';
 import ChangePerInfoModal from '@/components/ChangePerInfoModal';
+import { ICallReceiverInfo } from '@/components/AudioModal/type';
+import AudioModal from '@/components/AudioModal';
+import { wsBaseURL } from '@/config';
+import { IChatRef } from './type';
+import { IFriendInfo, IGroupChatInfo } from '../address-book/type';
 const Container = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -21,7 +26,20 @@ const Container = () => {
   const [infoModal, setInfoModal] = useState(false);
   const [audioModal, setAudioModal] = useState(false);
   const [videoModal, setVideoModal] = useState(false);
-
+  // 音视频通话列表
+  const [callReceiverList, setCallReceiverList] = useState<ICallReceiverInfo[]>([]);
+  // 当前音视频通话模式
+  const [curMode, setCurMode] = useState<string>('');
+  // 当前音视频通话房间号
+  const [room, setRoom] = useState<string>('');
+  // 聊天列表组件实例
+  const chatRef = useRef<IChatRef>(null);
+  // 初始化选中的聊天对象
+  const [initSelectedChat, setInitSelectedChat] = useState<IFriendInfo | IGroupChatInfo | null>(
+    null
+  );
+  // websocket实例
+  const socket = useRef<WebSocket | null>(null);
   const currentPath = useMemo(() => {
     if (location.pathname === '/') return '/chat';
     return location.pathname;
@@ -41,11 +59,21 @@ const Container = () => {
   const handleVideoModal = (visible: boolean) => {
     setVideoModal(visible);
   };
+  // 在通讯录界面选择一个好友或者群聊进行发送消息时跳转到聊天界面
+  const handleChooseChat = (item: IFriendInfo | IGroupChatInfo) => {
+    navigate('/chat');
+    setInitSelectedChat(item);
+  };
   const confirmLogout = async () => {
     try {
       const res = await handleLogout(user);
       if (res.code === HttpStatus.SUCCESS) {
         showMessage('success', '退出成功');
+        // 关闭websocket连接
+        if (socket.current !== null) {
+          socket.current.close();
+          socket.current = null;
+        }
         navigate('/login');
       } else showMessage('error', '退出失败，请重试');
     } catch {
@@ -78,6 +106,37 @@ const Container = () => {
         </div>
       </div>
     );
+  };
+
+  // 进入主页面，初始化websocket连接（一旦用户上线了，就有可能接收到他人发送的消息和音视频聊天邀请）
+  const initSocket = () => {
+    const ws = new WebSocket(`${wsBaseURL}/auth/user_channel?username=${user.username}`);
+    ws.onmessage = e => {
+      const message = JSON.parse(e.data);
+      switch (message.name) {
+        case 'friendList':
+        // 重新加载好友列表
+        case 'groupChatList':
+        case 'chatList':
+          // 重新加载消息列表
+          chatRef.current?.refreshChatList();
+          break;
+        case 'create_room':
+          // 打开响应音视频通话窗口
+          try {
+            const { callReceiverList, room, mode } = message;
+            setCallReceiverList(callReceiverList);
+            setRoom(room);
+            setCurMode(mode);
+            // 区分是音频还是视频
+            if (mode.includes('audio')) setAudioModal(true);
+            else setVideoModal(true);
+          } catch {
+            showMessage('error', '音视频通话响应失败');
+          }
+          break;
+      }
+    };
   };
 
   return (
@@ -132,7 +191,7 @@ const Container = () => {
         </div>
         <div className={styles.right}>
           {currentPath === '/chat' ? (
-            <Chat />
+            <Chat initSelectedChat={initSelectedChat} ref={chatRef} />
           ) : currentPath === '/address-book' ? (
             <AddressBook />
           ) : null}
@@ -140,6 +199,18 @@ const Container = () => {
       </div>
       {forgetModal && <ChangePwdModal openmodal={forgetModal} handleModal={handleForgetModal} />}
       {infoModal && <ChangePerInfoModal openmodal={infoModal} handleModal={handleInfoModal} />}
+      {audioModal && callReceiverList.length && (
+        <AudioModal
+          openmodal={audioModal}
+          handleModal={handleAudioModal}
+          status="receive"
+          type={curMode.includes('private') ? 'private' : 'group'}
+          callInfo={{
+            room,
+            callReceiverList
+          }}
+        ></AudioModal>
+      )}
     </div>
   );
 };

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { IChatContainerProps } from './type';
 import { formatChatContentTime } from '@/utils/time';
 import styles from './index.module.less';
+import MessageShow from '../MessageShow';
 
 const ChatContainer = (props: IChatContainerProps) => {
   const { historyMsg, newMsg } = props;
@@ -21,7 +22,7 @@ const ChatContainer = (props: IChatContainerProps) => {
       prevTime = formatChatContentTime(item.created_at);
       return (
         <div key={index} className={styles.chat_item}>
-          消息展示
+          <MessageShow showTime={showTime} message={item} />
         </div>
       );
     });
@@ -33,7 +34,7 @@ const ChatContainer = (props: IChatContainerProps) => {
       prevTime = formatChatContentTime(item.created_at);
       return (
         <div key={index} className={styles.chat_item}>
-          消息展示
+          <MessageShow showTime={showTime} message={item} />
         </div>
       );
     });
