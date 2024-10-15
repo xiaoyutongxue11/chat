@@ -1,3 +1,5 @@
+import { ChatImage } from '@/assets/images';
+
 // 判断某个文件是否存在（浏览器会发起一个预检请求）
 export const urlExists = async (url: string) => {
   try {
@@ -52,4 +54,85 @@ export const getMediaShowSize = (
     if (size.width > size.height) return { width: `2.5rem` };
     else return { width: '1rem' };
   }
-};   
+};
+
+// 文件下载
+export const downloadFile = (url: string) => {
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch {
+    return;
+  }
+};
+
+// 获取文件名
+export const getFileName = (path: string) => {
+  const fileName = path.split('/').pop(); // pop移除并返回数组的最后一个元素
+  return fileName;
+};
+
+// 根据文件名获取文件类型（用于发送消息）
+export const getFileSuffixByName = (filename: string) => {
+  const fileSuffix = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+  switch (fileSuffix) {
+    case 'avi':
+    case 'mpeg':
+    case 'wmv':
+    case 'mov':
+    case 'flv':
+    case 'mp4':
+      return 'video';
+    case 'png':
+    case 'jpeg':
+    case 'jpg':
+    case 'gif':
+    case 'webp':
+    case 'svg':
+      return 'image';
+    default:
+      return 'file';
+  }
+};
+// 获取文件类型
+export const getFileIcons = (path: string) => {
+  const fileSuffix = path.substring(path.lastIndexOf('.') + 1).toLowerCase();
+  switch (fileSuffix) {
+    case 'docx':
+    case 'doc':
+      return ChatImage.WORD;
+    case 'xls':
+    case 'xlsx':
+      return ChatImage.EXCEL;
+    case 'ppt':
+    case 'pptx':
+      return ChatImage.PPT;
+    case 'pdf':
+      return ChatImage.PDF;
+    case 'apk':
+      return ChatImage.APK;
+    case 'exe':
+      return ChatImage.EXE;
+    case 'rar':
+    case 'zip':
+    case 'gz':
+    case 'tar':
+    case '7z':
+      return ChatImage.ZIP;
+    case 'avi':
+    case 'mpeg':
+    case 'wmv':
+    case 'mov':
+    case 'flv':
+    case 'mp4':
+      return ChatImage.MP4;
+    case 'txt':
+      return ChatImage.TXT;
+    default:
+      return ChatImage.DEFAULT;
+  }
+};
