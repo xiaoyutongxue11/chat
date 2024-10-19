@@ -17,3 +17,18 @@ export interface IChatToolProps {
   curChatInfo: IMessageListItem;
   sendMessage: (message: ISendMessage) => void;
 }
+
+export interface IGroupMemberParams {
+  groupId: number;
+  room: string;
+}
+
+export interface IGroupMember {
+  user_id: number;
+  avatar: string;
+  username: string;
+  name: string;
+  nickname: string;
+  created_at: string;
+  lastMessageTime: string;
+}

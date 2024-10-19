@@ -8,7 +8,6 @@ const ChatContainer = (props: IChatContainerProps) => {
   const { historyMsg, newMsg } = props;
   let prevTime: string | null = null;
   const chatRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     scrollToBottom();
   }, [historyMsg, newMsg]);

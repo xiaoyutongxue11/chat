@@ -8,6 +8,12 @@ import { ChangeEvent, useRef, useState } from 'react';
 import { userStorage } from '@/utils/storage';
 import useShowMessage from '@/hooks/useShowMessage';
 import { getFileSuffixByName } from '@/utils/file';
+import { ICallReceiverInfo } from '../AudioModal/type';
+import AudioModal from '../AudioModal';
+import { IMessageListItem } from '@/pages/chat/type';
+import VideoModal from '../VideoModal';
+import { getGroupMembers } from './api';
+import { HttpStatus } from '@/utils/constant';
 interface IconListParams {
   icons: typeof ChatIconList;
   placementFn: (index: number) => TooltipPlacement;
@@ -21,6 +27,9 @@ const ChatTool = (props: IChatToolProps) => {
   const [loading, setLoading] = useState(false);
   const user = JSON.parse(userStorage.getItem());
   const showMessage = useShowMessage();
+  const [openAudioModal, setAudioModal] = useState(false);
+  const [openVideoModal, setVideoModal] = useState(false);
+  const [callReceiverList, setCallReceiverList] = useState<ICallReceiverInfo[]>([]);
   const addEmoji = (emoji: string) => {
     setInputValue((preValue: string) => preValue + emoji);
   };
@@ -45,6 +54,57 @@ const ChatTool = (props: IChatToolProps) => {
       })}
     </div>
   );
+  const getCallReceiverList = async () => {
+    if (isGroupChat(curChatInfo)) {
+      try {
+        const params = { groupId: curChatInfo.receiver_id, room: curChatInfo.room };
+        const res = await getGroupMembers(params);
+        if (res.code === HttpStatus.SUCCESS && res.data) {
+          setCallReceiverList(
+            res.data.map(item => {
+              return {
+                username: item.username,
+                alias: item.nickname,
+                avatar: item.avatar
+              };
+            })
+          );
+        } else {
+          showMessage('error', '获取群聊成员信息失败，请重试');
+        }
+      } catch {
+        showMessage('error', '获取群聊成员信息失败，请重试');
+      }
+    } else {
+      setCallReceiverList([
+        {
+          username: curChatInfo.receiver_username as string,
+          alias: curChatInfo.name,
+          avatar: curChatInfo.avatar
+        }
+      ]);
+    }
+  };
+  const handleIconClick = async (icon: string) => {
+    switch (icon) {
+      case 'icon-tupian_huaban':
+        imageRef.current?.click();
+        break;
+      case 'icon-wenjian1':
+        fileRef.current?.click();
+        break;
+      case 'icon-dianhua':
+        await getCallReceiverList();
+        setAudioModal(true);
+        break;
+      case 'icon-video':
+        await getCallReceiverList();
+        setVideoModal(true);
+        break;
+      default:
+        break;
+    }
+  };
   const IconList = ({ icons, placementFn }: IconListParams) => {
     return (
       <>
@@ -54,7 +114,12 @@ const ChatTool = (props: IChatToolProps) => {
             placement={placementFn(index)}
             title={index === 0 ? emojiList : item.text}
           >
-            <li className={`iconfont ${item.icon}`} onClick={() => {}}></li>
+            <li
+              className={`iconfont ${item.icon}`}
+              onClick={() => {
+                handleIconClick(item.icon);
+              }}
+            ></li>
           </Tooltip>
         ))}
       </>
@@ -153,13 +218,67 @@ const ChatTool = (props: IChatToolProps) => {
       } else {
         try {
           // 发送文件信息
+          const fileInfo = {
+            fileName: file.name,
+            fileSize: file.size
+          };
+          // 发送文件下载指令
+          const newmessage: ISendMessage = {
+            sender_id: user.id,
+            receiver_id: curChatInfo.receiver_id,
+            type: 'file',
+            content: '',
+            avatar: user.avatar,
+            filename: file.name,
+            fileTraStatus: 'start',
+            fileInfo: JSON.stringify(fileInfo)
+          };
+          sendMessage(newmessage);
         } catch {
+          showMessage('error', '消息发送失败，请重试');
+          setLoading(false);
+          fileRef.current!.value = '';
         } finally {
         }
+        // 防止文件未初始化完成就发送
+        setTimeout(async () => {
+          const reader = file.stream().getReader();
+          let shouldExit = false;
+          let chunk;
+          let transmittedSize = 0; // 获取服务端已经传输的文件大小
+          while (!shouldExit) {
+            chunk = await reader.read();
+            if (chunk.done) {
+              setLoading(false);
+              shouldExit = true;
+              fileRef.current!.value = '';
+            } else {
+              transmittedSize -= chunk.value.byteLength; // 减去当前块的字节长度来更新已传输的大小，支持断点续传
+              if (transmittedSize <= 0) {
+                const newmessage: ISendMessage = {
+                  sender_id: user.id,
+                  receiver_id: curChatInfo.receiver_id,
+                  type: 'file',
+                  content: Array.from(new Uint8Array(chunk.value)),
+                  avatar: user.avatar,
+                  filename: file.name,
+                  fileTraStatus: 'upload'
+                };
+                sendMessage(newmessage);
+              }
+            }
+          }
+        }, 50);
       }
     }
   };
+  const handleAudioModal = () => {};
+  const handleVideoModal = () => {};
   const getPlacement = (index: number) => (index === 0 ? 'top' : 'bottom');
+  const isGroupChat = (item: IMessageListItem) => {
+    return !item.receiver_username;
+  };
+
   return (
     <div className={styles.chat_tool}>
       <div className={styles.chat_tool_item}>
@@ -181,7 +300,9 @@ const ChatTool = (props: IChatToolProps) => {
           accept="*"
           style={{ display: 'none' }}
           ref={fileRef}
-          onChange={() => {}}
+          onChange={e => {
+            handleSendFileMessage(e);
+          }}
         />
       </div>
       <div className={styles.chat_tool_input}>
@@ -194,6 +315,30 @@ const ChatTool = (props: IChatToolProps) => {
           发送
         </Button>
       </div>
+      {openAudioModal && callReceiverList.length && (
+        <AudioModal
+          openmodal={openAudioModal}
+          handleModal={handleAudioModal}
+          status="initiate"
+          type={isGroupChat(curChatInfo) ? 'group' : 'private'}
+          callInfo={{
+            room: curChatInfo.room,
+            callReceiverList: callReceiverList
+          }}
+        ></AudioModal>
+      )}
+      {openVideoModal && callReceiverList.length && (
+        <VideoModal
+          openmodal={openVideoModal}
+          handleModal={handleVideoModal}
+          status="initiate"
+          type={isGroupChat(curChatInfo) ? 'group' : 'private'}
+          callInfo={{
+            room: curChatInfo.room,
+            callReceiverList: callReceiverList
+          }}
+        ></VideoModal>
+      )}
     </div>
   );
 };
