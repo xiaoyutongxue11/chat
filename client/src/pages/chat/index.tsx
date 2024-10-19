@@ -15,6 +15,9 @@ import { wsBaseURL } from '@/config';
 import { IMessageItem } from '@/components/MessageShow/type';
 import Container from '../container';
 import ChatContainer from '@/components/ChatContainer';
+import ChatTool from '@/components/ChatTool';
+import { ISendMessage } from '@/components/ChatTool/type';
+import { formatChatListTime } from '@/utils/time';
 
 // 判断当前的聊天是否为群聊
 const isGroupChat = (item: IMessageListItem) => {
@@ -53,11 +56,13 @@ const Chat = forwardRef((props: IChatListProps, ref) => {
       socket.current.close();
       socket.current = null;
     }
-    const ws = new WebSocket(`${wsBaseURL}/message/connect_chat?room=${connectParams.room}`);
+    const ws = new WebSocket(
+      `${wsBaseURL}/message/connect_chat?room=${connectParams.room}&id=${connectParams.sender_id}&type=${connectParams.type}`
+    );
     // 获取消息记录
     ws.onmessage = e => {
       const message = JSON.parse(e.data);
-      // 判断返回的信息是历史消息数组还是单挑消息
+      // 判断返回的信息是历史消息数组还是单条消息
       if (Array.isArray(message)) {
         setHistoryMsg(message);
         return;
@@ -70,6 +75,18 @@ const Chat = forwardRef((props: IChatListProps, ref) => {
       showMessage('error', 'websocket连接失败');
     };
     socket.current = ws;
+  };
+  const chooseRoom = (item: IMessageListItem) => {
+    setHistoryMsg([]);
+    setNewMessage([]);
+    setCurChatInfo(item);
+    const params: IConnectParams = {
+      room: item.room,
+      sender_id: user.id,
+      type: isGroupChat(item) ? 'group' : 'private'
+    };
+    initSocket(params);
+    refreshChatList();
   };
   const init = async () => {
     await refreshChatList();
@@ -118,13 +135,17 @@ const Chat = forwardRef((props: IChatListProps, ref) => {
       initSocket(params);
     }
   };
+  const sendMessage = (message: ISendMessage) => {
+    socket.current?.send(JSON.stringify(message));
+    refreshChatList();
+  };
   useEffect(() => {
     init();
     // 组件卸载时关闭 websocket 连接
     return () => {
       socket.current?.close();
     };
-  });
+  }, []);
   return (
     <div className={styles.chatList}>
       <div className={styles.leftContainer}>
@@ -132,42 +153,67 @@ const Chat = forwardRef((props: IChatListProps, ref) => {
           <SearchContainer />
         </div>
         <div className={styles.list}>
-          {chatList.length !== 0 ? (
+          {chatList.length === 0 ? (
             <div className={styles.chat_none}>暂无消息记录</div>
           ) : (
-            <div className={styles.chat_item}>
-              <div className={styles.chat_avatar}>
-                {/* <ImageLoad src="" /> */}
-                <img src="" alt="avatar" />
-              </div>
-              <div className={styles.chat_info}>
-                <div className={styles.chat_name}>
-                  <span>item.name</span>
-                  <span className={`icn iconfont icon-jinqunliaoliao ${styles.group_icon}`}></span>
+            chatList.map(item => (
+              <div
+                className={styles.chat_item}
+                key={item.room}
+                id={`chatList_${item.room}`}
+                onClick={e => {
+                  chooseRoom(item);
+                }}
+                style={{
+                  backgroundColor: curChatInfo?.room === item.room ? 'rgba(0, 0, 0, 0.08)' : ''
+                }}
+              >
+                <div className={styles.chat_avatar}>
+                  <ImageLoad src={item.avatar} />
                 </div>
-                <div className={styles.chat_message}>
-                  哈喽~反馈给叫了个鸡受力钢筋来挂机了搜嘎登记
-                </div>
-              </div>
-              <div className={styles.chat_info_time}>
-                <div className={styles.chat_time}>昨天</div>
-                <Tooltip placement="bottomLeft" title={`未读消息5条`}>
-                  <div className={`iconfont ${StatusIconList[2].icon} ${styles.chat_unread}`}>
-                    <span>5</span>
+                <div className={styles.chat_info}>
+                  <div className={styles.chat_name}>
+                    <span>{item.name}</span>
+                    {isGroupChat(item) && (
+                      <span
+                        className={`icn iconfont icon-jinqunliaoliao ${styles.group_icon}`}
+                      ></span>
+                    )}
                   </div>
-                </Tooltip>
+                  <div className={styles.chat_message}>
+                    {item.type === 'text'
+                      ? item.lastMessage
+                      : item.type === 'image'
+                        ? '[图片]'
+                        : item.type === 'video'
+                          ? '[视频]'
+                          : item.type === 'file'
+                            ? '[文件]'
+                            : null}
+                  </div>
+                </div>
+                <div className={styles.chat_info_time}>
+                  <div className={styles.chat_time}>{formatChatListTime(item.updated_at)}</div>
+                  <Tooltip placement="bottomLeft" title={`未读消息${item.unreadCount}条`}>
+                    <div className={`iconfont ${StatusIconList[2].icon} ${styles.chat_unread}`}>
+                      <span>{item.unreadCount}</span>
+                    </div>
+                  </Tooltip>
+                </div>
               </div>
-            </div>
+            ))
           )}
         </div>
       </div>
       <div className={styles.rightContainer}>
         {!curChatInfo ? (
-          <WechatOutlined />
+          <div className={styles.chatNone}>
+            <WechatOutlined style={{ fontSize: '3rem', color: '#aaa' }} />
+          </div>
         ) : (
           <div className={styles.chat_window}>
             <div className={styles.chat_receiver}>
-              <span>TYT</span>
+              <span>{curChatInfo.name}</span>
               {isGroupChat(curChatInfo) && (
                 <span className={`icon iconfont icon-jinqunliaoliao ${styles.group_icon}`}></span>
               )}
@@ -175,7 +221,9 @@ const Chat = forwardRef((props: IChatListProps, ref) => {
             <div className={styles.chat_content}>
               <ChatContainer historyMsg={historyMsg} newMsg={newMessage} />
             </div>
-            <div className={styles.chat_input}>input</div>
+            <div className={styles.chat_input}>
+              <ChatTool curChatInfo={curChatInfo} sendMessage={sendMessage} />
+            </div>
           </div>
         )}
       </div>
