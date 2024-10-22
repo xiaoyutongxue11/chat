@@ -82,6 +82,16 @@
         background-color: @item-hover-bg-color;
       }
     }
+    .list::-webkit-scrollbar {
+      width: 0.05rem;
+    }
+    .list::-webkit-scrollbar-thumb {
+      border-radius: 0.05rem;
+      background-color: transparent;
+    }
+    .list:hover::-webkit-scrollbar-thumb {
+      background-color: @primary-border_bg-color;
+    }
   }
   .rightContainer {
     flex: 12;

@@ -169,9 +169,11 @@ const ChatTool = (props: IChatToolProps) => {
             filename: filename
           };
           sendMessage(newmessage);
+          setLoading(false);
+          // 清空文件输入字段的值，否则再次选择相同文件时无法触发 onchange
+          imageRef.current!.value = '';
         } catch {
           showMessage('error', '消息发送失败，请重试');
-        } finally {
           setLoading(false);
           imageRef.current!.value = '';
         }
@@ -293,7 +295,9 @@ const ChatTool = (props: IChatToolProps) => {
           accept="image/*,video/*"
           style={{ display: 'none' }}
           ref={imageRef}
-          onChange={e => handleSendImageMessage(e)}
+          onChange={e => {
+            handleSendImageMessage(e);
+          }}
         />
         <input
           type="file"
