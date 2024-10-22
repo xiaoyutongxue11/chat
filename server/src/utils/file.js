@@ -14,7 +14,7 @@ const generateRandomString = length => {
 
 // 判断指定目录是否存在，不存在则创建
 const notExitCreate = dir => {
-	if (!fs.existSync(dir)) {
+	if (!fs.existsSync(dir)) {
 		fs.mkdirSync(dir, { recursive: true });
 	}
 };
